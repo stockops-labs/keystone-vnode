@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keystone vNode · Stake on Vitreus</title>
+<meta name="description" content="Keystone vNode: a Vitreus validator. Live commission, reputation, uptime and stake, read straight from the chain.">
+<meta name="theme-color" content="#0a100e">
+<meta property="og:title" content="Keystone vNode · Stake on Vitreus">
+<meta property="og:description" content="Live validator stats from the Vitreus chain: commission, reputation, uptime, cooperators.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231fa56c'/%3E%3Cpath d='M9 8h4v6.5L19 8h5l-7 7.5L24 24h-5l-6-7v7H9z' fill='%23e8f0ec'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a100e; --surface: #111a17; --surface-2: #16221e; --border: #22312c;
+    --ink: #e8f0ec; --ink-2: #a9b8b1; --ink-3: #6f8179;
+    --own: #1fa56c; --delegated: #5c7cf0; --good: #2fbf71; --warn: #e0a43a; --crit: #e5534b; --idle: #2a3833;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+  body { padding: calc(28px + env(safe-area-inset-top)) calc(clamp(14px, 4vw, 40px) + env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) calc(clamp(14px, 4vw, 40px) + env(safe-area-inset-left)); }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  a { color: #8fb0ff; text-decoration: none; } a:hover { text-decoration: underline; }
+  button { font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 7px 12px; cursor: pointer; }
+  button:hover { border-color: #35504a; }
+
+  /* hero */
+  .hero { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 22px; padding: clamp(22px, 4vw, 40px);
+    background: radial-gradient(120% 140% at 0% 0%, rgba(31,165,108,.22), transparent 55%), radial-gradient(90% 120% at 100% 100%, rgba(92,124,240,.16), transparent 55%), var(--surface); }
+  .hero-top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; }
+  .mark { width: 56px; height: 56px; border-radius: 15px; background: linear-gradient(135deg, #1fa56c, #0e5c3c); display: grid; place-items: center; box-shadow: 0 10px 30px rgba(31,165,108,.25); }
+  .mark svg { width: 30px; height: 30px; }
+  h1 { font-size: clamp(28px, 5vw, 44px); margin: 0; font-weight: 800; letter-spacing: -0.03em; }
+  .tagline { color: var(--ink-2); font-size: clamp(15px, 2.2vw, 18px); margin: 14px 0 0; max-width: 640px; line-height: 1.5; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid var(--border); background: rgba(10,16,14,.6); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); }
+  .pill.ok .dot { background: var(--good); box-shadow: 0 0 0 4px rgba(47,191,113,.18); }
+  .pill.warn .dot { background: var(--warn); } .pill.crit .dot { background: var(--crit); }
+  .addr-box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 22px; padding: 12px 14px; border-radius: 12px; background: rgba(10,16,14,.65); border: 1px solid var(--border); }
+  .addr-box .k { color: var(--ink-3); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .addr-box .v { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; flex: 1; min-width: 220px; }
+  .btn-primary { background: var(--own); border-color: var(--own); color: #06120d; font-weight: 700; }
+  .btn-primary:hover { filter: brightness(1.08); border-color: var(--own); }
+  .copied { font-size: 12px; color: var(--good); opacity: 0; transition: opacity .2s; }
+  .copied.on { opacity: 1; }
+  .hero-links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 13px; }
+
+  /* stats */
+  h2 { font-size: 18px; font-weight: 700; margin: 34px 0 12px; letter-spacing: -0.01em; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 820px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .label { color: var(--ink-2); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
+  .big { font-size: 28px; font-weight: 700; margin: 8px 0 4px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .big small { font-size: 14px; color: var(--ink-2); font-weight: 500; margin-left: 4px; }
+  .sub { color: var(--ink-2); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .sub b { color: var(--ink); font-weight: 600; }
+  .bar { height: 6px; border-radius: 3px; background: var(--idle); overflow: hidden; margin-top: 10px; }
+  .bar > i { display: block; height: 100%; border-radius: 3px; transition: width .6s ease; }
+  .skeleton { color: transparent !important; background: linear-gradient(90deg, #16221e, #1c2b26, #16221e); background-size: 200% 100%; animation: sh 1.4s infinite; border-radius: 6px; }
+  @keyframes sh { to { background-position: -200% 0; } }
+
+  /* chart */
+  .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 10px; }
+  .panel-head h3 { font-size: 15px; font-weight: 600; margin: 0; }
+  .meta { color: var(--ink-3); font-size: 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-2); margin-left: auto; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; }
+  .axis text { fill: var(--ink-3); font-size: 11px; font-family: Inter, sans-serif; }
+  .tip { position: absolute; pointer-events: none; background: #0b1311; border: 1px solid #2c3f39; border-radius: 10px; padding: 8px 10px; font-size: 12px; color: var(--ink); white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.4); opacity: 0; transition: opacity .1s; z-index: 5; }
+  .tip .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+  .tip .k { color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+
+  /* prose blocks */
+  .two { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 820px) { .two { grid-template-columns: 1fr 1fr; } }
+  ul.facts, ol.steps { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
+  ul.facts li, ol.steps li { margin: 6px 0; }
+  ul.facts b, ol.steps b { color: var(--ink); font-weight: 600; }
+  .why { display: grid; gap: 10px; }
+  .why .item { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+  .why .ico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: rgba(31,165,108,.15); color: var(--good); font-weight: 700; font-size: 14px; }
+  .why .t { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+  .why .t b { color: var(--ink); }
+
+  .err { background: #2a1513; border: 1px solid #5a2622; color: #f3c2bd; padding: 12px 14px; border-radius: 12px; margin-top: 14px; display: none; }
+  footer { margin-top: 30px; color: var(--ink-3); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--border); padding-top: 16px; }
+  @media (max-width: 520px) { .big { font-size: 22px; } .big small { font-size: 12px; } .card { padding: 13px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-top">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M9 6h4.5v8L20 6h5.5l-7.5 9 7.5 11H20l-6.5-9v9H9z" fill="#e8f0ec"/></svg>
+      </div>
+      <h1 id="nodeName">Keystone vNode</h1>
+      <span class="pill" id="statusPill"><span class="dot"></span><span id="statusText">Checking the chain…</span></span>
+    </div>
+    <p class="tagline" id="tagline">A Vitreus validator you can stake with. Every number on this page is read live from the Vitreus chain each time you open it, so you can check it yourself.</p>
+
+    <div class="addr-box">
+      <span class="k">Validator address</span>
+      <span class="v mono" id="addr"></span>
+      <button class="btn-primary" id="copyBtn">Copy address</button>
+      <span class="copied" id="copied">Copied</span>
+    </div>
+    <div class="hero-links">
+      <a id="explorerLink" href="#" target="_blank" rel="noopener">View on explorer.vtrs.io ↗</a>
+      <a href="https://vscango.com/operators" target="_blank" rel="noopener">Compare operators on vScan ↗</a>
+      <a href="#how">How to stake ↓</a>
+    </div>
+  </section>
+
+  <div class="err" id="err"></div>
+
+  <!-- STATS -->
+  <h2>At a glance</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="label">Commission</div>
+      <div class="big skeleton" id="k-comm">20%</div>
+      <div class="sub" id="k-comm-sub">&nbsp;</div>
+    </div>
+    <div class="card">
+      <div class="label">Reputation</div>
+      <div class="big skeleton" id="k-rep">—</div>
+      <div class="sub" id="k-rep-sub">&nbsp;</div>
+    </div>
+    <div class="card">
+      <div class="label">Producing blocks</div>
+      <div class="big skeleton" id="k-blocks">0</div>
+      <div class="sub" id="k-blocks-sub">&nbsp;</div>
+    </div>
+    <div class="card">
+      <div class="label">Cooperators</div>
+      <div class="big skeleton" id="k-coops">0</div>
+      <div class="sub" id="k-coops-sub">&nbsp;</div>
+      <div class="bar"><i id="k-coops-bar" style="width:0%;background:var(--delegated)"></i></div>
+    </div>
+    <div class="card">
+      <div class="label">Total stake</div>
+      <div class="big skeleton" id="k-stake">0</div>
+      <div class="sub" id="k-stake-sub">&nbsp;</div>
+    </div>
+    <div class="card">
+      <div class="label">Track record</div>
+      <div class="big skeleton" id="k-slash">Clean</div>
+      <div class="sub" id="k-slash-sub">&nbsp;</div>
+    </div>
+  </div>
+
+  <!-- STAKE CHART -->
+  <section class="card" style="margin-top:12px">
+    <div class="panel-head">
+      <h3>Stake over the last 14 days</h3>
+      <span class="meta" id="stakeRange"></span>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--delegated)"></i>From cooperators</span>
+        <span><i class="sw" style="background:var(--own)"></i>Operator's own stake</span>
+      </div>
+    </div>
+    <div class="chart" id="stakeChart"><div class="meta">Loading…</div></div>
+  </section>
+
+  <!-- WHY + FACTS -->
+  <div class="two">
+    <section>
+      <h2>Why Keystone</h2>
+      <div class="card why" id="why"><div class="meta">Loading…</div></div>
+    </section>
+    <section>
+      <h2>Before you stake</h2>
+      <div class="card">
+        <ul class="facts" id="facts"><li class="meta">Loading…</li></ul>
+      </div>
+    </section>
+  </div>
+
+  <!-- HOW TO -->
+  <h2 id="how">How to stake with Keystone</h2>
+  <div class="card">
+    <ol class="steps">
+      <li><b>Copy the validator address</b> above. It's the only thing that identifies this node; ignore any lookalike address you're sent.</li>
+      <li>Open <b>vApp</b> and go to staking, where you choose a vNode to cooperate with.</li>
+      <li><b>Paste the address</b> and check it ends in <span class="mono" id="addrEnd">…</span>.</li>
+      <li>Enter how much VTRS to stake, review it, and <b>sign</b>.</li>
+      <li>Your stake starts counting once the next validator selection takes effect, usually within an era or two (eras are 4 hours). Rewards arrive as VNRG energy and are paid out in batches.</li>
+    </ol>
+    <p class="sub" style="margin:12px 0 0">Screens in vApp may differ slightly between versions. If anything doesn't match, ask in the official Vitreus community before signing.</p>
+  </div>
+
+  <footer>
+    Live data from the Vitreus mainnet (wss://rpc-mainnet.vtrs.io), read in your browser. Refreshes every 2 minutes while this page is open. <span id="updated"></span><br>
+    Unofficial operator page, not affiliated with Vitreus. Nothing here is financial advice. Staking carries risk, including slashing and changes to network rules; do your own research and verify everything on-chain.
+  </footer>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script type="module">
+import { ApiPromise, WsProvider } from "https://esm.sh/@polkadot/api@16.5.6?bundle";
+
+// ------------------------------------------------------------------ settings
+const ME = "0x4a5aE431Fa51c67096Bf5763A6b8C00fA44d8edA";
+const NAME = "Keystone vNode";
+const RPC = "wss://rpc-mainnet.vtrs.io:443";
+const ERA_HOURS = 4;
+const REFRESH_MS = 2 * 60e3, HISTORY_MS = 30 * 60e3;
+
+// ------------------------------------------------------------------ helpers
+const $ = (id) => document.getElementById(id);
+function setText(id, text) { const e = $(id); e.textContent = text; e.classList.remove("skeleton"); }
+function setParts(id, parts) {
+  const e = $(id); e.textContent = "";
+  for (const p of parts) { if (typeof p === "string") e.append(p); else { const b = document.createElement("b"); b.textContent = p.b; e.append(b); } }
+}
+function addSmall(id, text) { $(id).append(Object.assign(document.createElement("small"), { textContent: text })); }
+const big = (v) => BigInt(typeof v === "number" ? Math.round(v) : (v ?? 0));
+const toVTRS = (v) => Number(big(v) / 10n ** 12n) / 1e6;
+const fmt = (n, d = 0) => n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+const compact = (n) => n >= 1e6 ? fmt(n / 1e6, 2) + "M" : n >= 1e4 ? fmt(n / 1e3, 1) + "K" : fmt(n, n < 10 ? 2 : 0);
+const tierName = (t) => { if (!t) return "—"; const [k, v] = Object.entries(t)[0]; return k[0].toUpperCase() + k.slice(1) + " " + v; };
+
+// reputation stake bonus, from the Vitreus runtime (ReputationExposureMultiplier)
+const TIERS = ["vanguard", "trailblazer", "ultramodern"];
+const tierRank = (t) => { if (!t) return 0; const [k, v] = Object.entries(t)[0]; return TIERS.indexOf(k) * 3 + v; };
+const BONUS = { 2: 2, 3: 4, 4: 8, 5: 10, 6: 12, 7: 16, 8: 18, 9: 20 };
+const bonusFor = (r) => r >= 10 ? 20 + (r - 9) : (BONUS[r] ?? 0);
+
+// tooltip
+const tip = $("tip");
+function showTip(nodes, x, y) {
+  tip.replaceChildren(...nodes); tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect(); let l = x + 14, t = y + 14;
+  if (l + r.width > innerWidth - 12) l = x - r.width - 14; if (t + r.height > innerHeight - 12) t = y - r.height - 14;
+  tip.style.left = (l + scrollX) + "px"; tip.style.top = (t + scrollY) + "px";
+}
+const hideTip = () => { tip.style.opacity = 0; };
+function tipRow(label, value, color) {
+  const row = document.createElement("div"); row.className = "row";
+  const k = document.createElement("span"); k.className = "k";
+  if (color) { const s = document.createElement("i"); s.className = "sw"; s.style.background = color; k.append(s); }
+  k.append(label); const v = document.createElement("b"); v.textContent = value; row.append(k, v); return row;
+}
+const tipTitle = (t) => Object.assign(document.createElement("div"), { textContent: t, style: "color:var(--ink-2);margin-bottom:4px" });
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs = {}, parent) { const e = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.append(e); return e; }
+const niceMax = (v) => { const p = 10 ** Math.floor(Math.log10(v || 1)); return Math.ceil(v / p) * p; };
+
+// ------------------------------------------------------------------ identity + copy
+$("addr").textContent = ME;
+$("addrEnd").textContent = "…" + ME.slice(-4);
+$("explorerLink").href = "https://explorer.vtrs.io/address/" + ME;
+$("copyBtn").onclick = async () => {
+  const flash = (m) => { const c = $("copied"); c.textContent = m; c.classList.add("on"); setTimeout(() => c.classList.remove("on"), 1600); };
+  try { await navigator.clipboard.writeText(ME); flash("Copied"); }
+  catch { const r = document.createRange(); r.selectNodeContents($("addr")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); flash("Selected: press ⌘C / Ctrl+C"); }
+};
+
+// ------------------------------------------------------------------ data
+let api, history = null, historyAt = 0, last = null;
+
+async function loadLive() {
+  const q = api.query, c = api.consts.energyGeneration;
+  const [eraOpt, curEraOpt, session, validators, disabled, spans, ledger, prefs, rep, coll, minComm, opKeys] = await Promise.all([
+    q.energyGeneration.activeEra(), q.energyGeneration.currentEra(), q.session.currentIndex(), q.session.validators(),
+    q.session.disabledValidators(), q.energyGeneration.slashingSpans(ME), q.energyGeneration.ledger(ME),
+    q.energyGeneration.validators(ME), q.reputation.accountReputation(ME), q.energyGeneration.collaborations(ME),
+    q.energyGeneration.minCommission(), q.energyGeneration.validators.keys(),
+  ]);
+  const era = eraOpt.toJSON(), sess = session.toNumber();
+  const vals = validators.toJSON().map((v) => v.toLowerCase());
+  const index = vals.indexOf(ME.toLowerCase());
+  const ops = opKeys.map((k) => k.args[0].toString());
+  const [allBlocks, expo, reps] = await Promise.all([
+    q.imOnline.authoredBlocks.multi(vals.map((v) => [sess, v])),
+    q.energyGeneration.erasStakers(era.index, ME),
+    q.reputation.accountReputation.multi(ops),
+  ]);
+  const myPts = Number(rep.toJSON()?.reputation?.points ?? 0);
+  return {
+    activeEra: era.index, currentEra: curEraOpt.toJSON() ?? era.index, sess, index, nVals: vals.length,
+    disabled: disabled.toJSON().map((d) => (Array.isArray(d) ? d[0] : d)),
+    blocks: index >= 0 ? allBlocks[index].toNumber() : 0, allBlocks: allBlocks.map((b) => b.toNumber()),
+    spans: spans.toJSON(), ledger: ledger.toJSON(), prefs: prefs.toJSON(), rep: rep.toJSON(),
+    coll: coll.toJSON() ?? [], expo: expo.toJSON(), minCommission: Number(minComm.toJSON() ?? 0),
+    repRank: 1 + reps.filter((r) => Number(r.toJSON()?.reputation?.points ?? 0) > myPts).length, repCount: ops.length,
+    consts: {
+      bonding: c.bondingDuration.toNumber(), slashDefer: c.slashDeferDuration.toNumber(),
+      maxPaid: c.maxCooperatorRewardedPerValidator.toNumber(), history: c.historyDepth.toNumber(),
+    },
+  };
+}
+
+async function loadHistory(activeEra) {
+  const depth = api.consts.energyGeneration.historyDepth.toNumber();
+  const eras = Array.from({ length: depth }, (_, i) => activeEra - depth + 1 + i).filter((e) => e >= 0);
+  const ex = await api.query.energyGeneration.erasStakers.multi(eras.map((e) => [e, ME]));
+  return eras.map((e, i) => { const j = ex[i].toJSON(); return { era: e, total: toVTRS(j.total), own: toVTRS(j.own), coops: j.others.length }; });
+}
+
+// ------------------------------------------------------------------ render
+function render(s) {
+  // status
+  const pill = $("statusPill"); pill.className = "pill";
+  const disabled = s.index >= 0 && s.disabled.includes(s.index);
+  if (s.index < 0) { pill.classList.add("warn"); $("statusText").textContent = "Not validating this session"; }
+  else if (disabled) { pill.classList.add("crit"); $("statusText").textContent = "Temporarily disabled"; }
+  else { pill.classList.add("ok"); $("statusText").textContent = "Active validator"; }
+
+  // commission
+  const comm = (s.prefs?.commission ?? 0) / 1e7, minC = s.minCommission / 1e7;
+  setText("k-comm", fmt(comm, comm % 1 ? 1 : 0) + "%");
+  setParts("k-comm-sub", comm <= minC ? ["The ", { b: "lowest allowed" }, " on Vitreus (network minimum is " + fmt(minC) + "%)"] : ["Network minimum is " + fmt(minC) + "%"]);
+
+  // reputation
+  const r = s.rep?.reputation, rank = tierRank(r?.tier);
+  setText("k-rep", tierName(r?.tier));
+  setParts("k-rep-sub", ["Ranked ", { b: `#${s.repRank} of ${s.repCount}` }, ` validators · +${bonusFor(rank)}% stake bonus`]);
+
+  // blocks vs network
+  const sorted = s.allBlocks.slice().sort((a, b) => a - b);
+  const median = sorted.length ? (sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : 0;
+  setText("k-blocks", s.index >= 0 ? fmt(s.blocks) : "—");
+  if (s.index >= 0) addSmall("k-blocks", "this hour");
+  setParts("k-blocks-sub", s.index >= 0
+    ? ["Network median ", { b: fmt(median, median % 1 ? 1 : 0) }, ` · one of ${s.nVals} active validators taking turns`]
+    : ["Not in this session's active set"]);
+
+  // cooperators
+  const coops = s.expo.others.length, maxPaid = s.consts.maxPaid;
+  setText("k-coops", fmt(coops)); addSmall("k-coops", `of ${maxPaid} paid slots`);
+  const open = Math.max(0, maxPaid - coops);
+  setParts("k-coops-sub", open > 0 ? [{ b: fmt(open) }, " paid slots open: every cooperator currently earns"] : ["All paid slots full: only the largest " + maxPaid + " stakes earn"]);
+  $("k-coops-bar").style.width = ((coops / maxPaid) * 100).toFixed(1) + "%";
+
+  // stake
+  const total = toVTRS(s.expo.total), ownRaw = toVTRS(s.ledger?.active ?? 0), del = total - toVTRS(s.expo.own);
+  setText("k-stake", compact(total)); addSmall("k-stake", "VTRS");
+  setParts("k-stake-sub", ["Operator's own stake ", { b: compact(ownRaw) }, " · from cooperators ", { b: compact(del) }]);
+
+  // track record
+  const sp = s.spans;
+  if (!sp) { setText("k-slash", "Clean"); $("k-slash").style.color = "var(--good)"; setParts("k-slash-sub", ["No offences on record"]); }
+  else if (sp.lastNonzeroSlash > 0) { setText("k-slash", "Slashed"); $("k-slash").style.color = "var(--crit)"; setParts("k-slash-sub", ["A slash was applied in era ", { b: fmt(sp.lastNonzeroSlash) }]); }
+  else { setText("k-slash", "0 slashed"); $("k-slash").style.color = "var(--good)"; setParts("k-slash-sub", ["No stake has ever been slashed. ", { b: String(sp.spanIndex) }, " minor offence reports on record (typically brief downtime), none costing stake"]); }
+
+  renderWhy(s, { comm, minC, open, ownRaw, median });
+  renderFacts(s, comm);
+}
+
+function renderWhy(s, d) {
+  const items = [];
+  const add = (ico, parts) => items.push([ico, parts]);
+  if (d.comm <= d.minC) add("%", [{ b: "Lowest commission allowed." }, ` ${fmt(d.comm)}% is the network minimum, so more of what your stake earns stays with you.`]);
+  add("★", [{ b: `Top-tier reputation.` }, ` ${tierName(s.rep?.reputation?.tier)}, ranked #${s.repRank} of ${s.repCount} validators. Reputation builds slowly through reliable operation.`]);
+  if (d.ownRaw > 0) add("⚖", [{ b: "Skin in the game." }, ` The operator stakes ${compact(d.ownRaw)} VTRS of their own on this node, at the same risk as yours.`]);
+  if (d.open > 0) add("✓", [{ b: "Room for your stake." }, ` ${fmt(d.open)} of ${s.consts.maxPaid} paid slots are open, so a new stake earns from the start.`]);
+  if (!s.spans || s.spans.lastNonzeroSlash === 0) add("◆", [{ b: "Never slashed." }, " No cooperator has lost stake on this node."]);
+  const host = $("why"); host.replaceChildren();
+  for (const [ico, parts] of items) {
+    const row = document.createElement("div"); row.className = "item";
+    const i = document.createElement("div"); i.className = "ico"; i.textContent = ico;
+    const t = document.createElement("div"); t.className = "t";
+    for (const p of parts) { if (typeof p === "string") t.append(p); else { const b = document.createElement("b"); b.textContent = p.b; t.append(b); } }
+    row.append(i, t); host.append(row);
+  }
+}
+
+function renderFacts(s, comm) {
+  const c = s.consts, days = (eras) => fmt((eras * ERA_HOURS) / 24, 0);
+  const facts = [
+    ["Rewards are paid in VNRG energy. ", { b: `${fmt(comm)}% commission` }, " goes to the operator; the rest is yours."],
+    [{ b: `Unstaking takes ${c.bonding} eras (about ${days(c.bonding)} days)` }, " before your VTRS is free to move."],
+    ["Only the ", { b: `largest ${c.maxPaid} stakes` }, " on a validator are paid each era. Keystone has " + s.expo.others.length + " today, so all are paid."],
+    [{ b: "Slashing is shared." }, ` If a validator commits a serious offence, cooperators can lose part of their stake too. Slashes wait ${c.slashDefer} eras (~${days(c.slashDefer)} days) before they apply.`],
+    s.prefs?.minCoopReputation?.tier ? ["Keystone accepts cooperators with ", { b: tierName(s.prefs.minCoopReputation.tier) }, " reputation or higher."] : null,
+    ["Unclaimed payouts expire after ", { b: `${c.history} eras (~${days(c.history)} days)` }, ". Keystone's payouts are claimed automatically in batches."],
+  ].filter(Boolean);
+  const ul = $("facts"); ul.replaceChildren();
+  for (const parts of facts) {
+    const li = document.createElement("li");
+    for (const p of parts) { if (typeof p === "string") li.append(p); else { const b = document.createElement("b"); b.textContent = p.b; li.append(b); } }
+    ul.append(li);
+  }
+}
+
+function renderStake(hist) {
+  const host = $("stakeChart"); host.replaceChildren();
+  if (!hist?.length) return;
+  const W = host.clientWidth, H = W < 520 ? 210 : 260, m = { t: 14, r: 10, b: 26, l: 52 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const maxV = niceMax(Math.max(...hist.map((h) => h.total)) * 1.1);
+  const x = (i) => m.l + (hist.length === 1 ? iw / 2 : (i / (hist.length - 1)) * iw);
+  const y = (v) => m.t + ih - (v / maxV) * ih;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Stake by era" }, host);
+  const axis = el("g", { class: "axis" }, svg);
+  for (let k = 0; k <= 4; k++) { const v = (maxV / 4) * k; el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: "#1e2b27" }, axis); const t = el("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end" }, axis); t.textContent = compact(v); }
+  const step = Math.ceil(hist.length / (W < 520 ? 3 : 6));
+  hist.forEach((h, i) => { const isLast = i === hist.length - 1; if (!isLast && (i % step || hist.length - 1 - i < step)) return; const t = el("text", { x: x(i), y: H - 6, "text-anchor": isLast ? "end" : i ? "middle" : "start" }, axis); t.textContent = "Era " + h.era; });
+  const area = (top, bot) => hist.map((h, i) => `${i ? "L" : "M"}${x(i)},${y(top(h))}`).join("") + hist.slice().reverse().map((h, j) => `L${x(hist.length - 1 - j)},${y(bot(h))}`).join("") + "Z";
+  const line = (fn) => hist.map((h, i) => `${i ? "L" : "M"}${x(i)},${y(fn(h))}`).join("");
+  el("path", { d: area((h) => h.own, () => 0), fill: "var(--own)", "fill-opacity": .85 }, svg);
+  el("path", { d: area((h) => h.total, (h) => h.own), fill: "var(--delegated)", "fill-opacity": .55 }, svg);
+  el("path", { d: line((h) => h.own), fill: "none", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  el("path", { d: line((h) => h.total), fill: "none", stroke: "var(--delegated)", "stroke-width": 2 }, svg);
+  const lastH = hist[hist.length - 1];
+  const lab = el("text", { x: x(hist.length - 1) - 6, y: y(lastH.total) - 8, "text-anchor": "end", fill: "var(--ink)", "font-size": 12, "font-weight": 600 }, svg); lab.textContent = compact(lastH.total) + " VTRS";
+  const cross = el("line", { y1: m.t, y2: m.t + ih, stroke: "#4b635b", opacity: 0 }, svg);
+  const d1 = el("circle", { r: 4, fill: "var(--delegated)", stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg);
+  const d2 = el("circle", { r: 4, fill: "var(--own)", stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg);
+  const hit = el("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" }, svg);
+  hit.addEventListener("pointermove", (ev) => {
+    const rr = svg.getBoundingClientRect(), px = (ev.clientX - rr.left) * (W / rr.width);
+    const i = Math.max(0, Math.min(hist.length - 1, Math.round(((px - m.l) / iw) * (hist.length - 1)))), h = hist[i];
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", 1);
+    d1.setAttribute("cx", x(i)); d1.setAttribute("cy", y(h.total)); d1.setAttribute("opacity", 1);
+    d2.setAttribute("cx", x(i)); d2.setAttribute("cy", y(h.own)); d2.setAttribute("opacity", 1);
+    showTip([tipTitle(`Era ${fmt(h.era)}`), tipRow("Total", fmt(h.total) + " VTRS"), tipRow("From cooperators", fmt(h.total - h.own) + " VTRS", "var(--delegated)"), tipRow("Operator (incl. rep. bonus)", fmt(h.own) + " VTRS", "var(--own)"), tipRow("Cooperators", String(h.coops))], ev.clientX, ev.clientY);
+  });
+  hit.addEventListener("pointerleave", () => { hideTip(); [cross, d1, d2].forEach((n) => n.setAttribute("opacity", 0)); });
+  $("stakeRange").textContent = `Eras ${fmt(hist[0].era)}–${fmt(lastH.era)}`;
+}
+
+// ------------------------------------------------------------------ loop (pauses while the tab is hidden)
+async function refresh() {
+  if (document.hidden) return;
+  try {
+    const s = await loadLive(); last = s; render(s);
+    if (!history || Date.now() - historyAt > HISTORY_MS) { history = await loadHistory(s.activeEra); historyAt = Date.now(); }
+    renderStake(history);
+    $("updated").textContent = "Last updated " + new Date().toLocaleTimeString() + ".";
+    $("err").style.display = "none";
+  } catch (e) {
+    console.error(e);
+    $("err").textContent = "Couldn't reach the Vitreus chain right now (" + (e?.message || e) + "). It will try again shortly.";
+    $("err").style.display = "block";
+  }
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => history && renderStake(history), 150); });
+
+try {
+  api = await ApiPromise.create({ provider: new WsProvider(RPC), noInitWarn: true });
+  await refresh();
+  setInterval(refresh, REFRESH_MS);
+} catch (e) {
+  $("err").textContent = "Couldn't connect to the Vitreus chain: " + (e?.message || e);
+  $("err").style.display = "block";
+}
+</script>
+</body>
+</html>
