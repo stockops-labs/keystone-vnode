@@ -1,0 +1,10 @@
+{
+  "announcements": [
+    {
+      "type": "info",
+      "title": "Keystone reached Ultramodern 10",
+      "message": "Stake bonus is now 27%.",
+      "expires": "2026-11-22T00:00-06:00"
+    }
+  ]
+}
