@@ -43,6 +43,36 @@ You don't need to trust the hosted copy:
 
 This works on a computer. On a phone, use the live link instead: phones open downloaded HTML files in a preview that doesn't run scripts.
 
+## Announcements (for the operator)
+
+Planned maintenance and other notices show at the top of the page. To post one, edit `announcements.json` in this repo (on github.com: open the file → pencil icon → **Commit changes**; the GitHub phone app works too). The live page picks it up within a minute or two.
+
+```json
+{
+  "announcements": [
+    {
+      "type": "maintenance",
+      "title": "Planned maintenance: UPS install",
+      "start": "2026-11-15T09:00-06:00",
+      "end": "2026-11-15T09:30-06:00",
+      "message": "Expect up to 30 minutes offline. No action needed from cooperators."
+    },
+    {
+      "type": "info",
+      "title": "Keystone reached Ultramodern 10",
+      "message": "Stake bonus is now 27%.",
+      "expires": "2026-11-22T00:00-06:00"
+    }
+  ]
+}
+```
+
+- `type`: `maintenance` (amber) or `info` (blue).
+- `start` / `end`: when it happens, with your UTC offset (`-06:00` for Central Standard Time, `-05:00` in summer). Visitors see it in their own time zone.
+- Maintenance shows **Scheduled**, then **Happening now** during the window (the status badge reads "Planned maintenance" instead of looking like an outage), then **Completed** for 24 hours before disappearing.
+- `expires` (optional) hides an `info` post after that time.
+- To clear everything, leave the list empty: `"announcements": []`.
+
 ## Check the numbers independently
 
 - **Explorer:** https://explorer.vtrs.io/address/0x4a5aE431Fa51c67096Bf5763A6b8C00fA44d8edA

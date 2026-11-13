@@ -89,6 +89,22 @@
   .why .t { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
   .why .t b { color: var(--ink); }
 
+  .notices { display: grid; gap: 10px; margin-top: 14px; }
+  .notice { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; border-radius: 14px; padding: 14px 16px; border: 1px solid var(--border); background: var(--surface); }
+  .notice .ni { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 16px; }
+  .notice .nt { font-weight: 700; font-size: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .notice .when { font-size: 13px; color: var(--ink-2); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .notice .msg { font-size: 14px; color: var(--ink-2); margin-top: 6px; line-height: 1.5; white-space: pre-line; }
+  .notice .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+  .notice.maintenance { background: #1f1a0e; border-color: #5a4720; }
+  .notice.maintenance .ni { background: rgba(224,164,58,.18); color: var(--warn); }
+  .notice.maintenance.now { background: #2a1f0c; border-color: #8a6a26; }
+  .notice.maintenance .tag { background: rgba(224,164,58,.18); color: var(--warn); }
+  .notice.info .ni { background: rgba(92,124,240,.18); color: #8fb0ff; }
+  .notice.info .tag { background: rgba(92,124,240,.18); color: #8fb0ff; }
+  .notice.done { opacity: .75; }
+  .notice.done .ni { background: rgba(47,191,113,.15); color: var(--good); }
+  .notice.done .tag { background: rgba(47,191,113,.15); color: var(--good); }
   .err { background: #2a1513; border: 1px solid #5a2622; color: #f3c2bd; padding: 12px 14px; border-radius: 12px; margin-top: 14px; display: none; }
   footer { margin-top: 30px; color: var(--ink-3); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--border); padding-top: 16px; }
   @media (max-width: 520px) { .big { font-size: 22px; } .big small { font-size: 12px; } .card { padding: 13px; } }
@@ -120,6 +136,8 @@
       <a href="#how">How to stake ↓</a>
     </div>
   </section>
+
+  <div class="notices" id="notices" aria-live="polite"></div>
 
   <div class="err" id="err"></div>
 
@@ -314,8 +332,11 @@ function render(s) {
   // status
   const pill = $("statusPill"); pill.className = "pill";
   const disabled = s.index >= 0 && s.disabled.includes(s.index);
-  if (s.index < 0) { pill.classList.add("warn"); $("statusText").textContent = "Not validating this session"; }
+  const mw = activeMaintenance();
+  if (mw && (s.index < 0 || disabled)) { pill.classList.add("warn"); $("statusText").textContent = "Planned maintenance"; }
+  else if (s.index < 0) { pill.classList.add("warn"); $("statusText").textContent = "Not validating this session"; }
   else if (disabled) { pill.classList.add("crit"); $("statusText").textContent = "Temporarily disabled"; }
+  else if (mw) { pill.classList.add("warn"); $("statusText").textContent = "Active · maintenance window"; }
   else { pill.classList.add("ok"); $("statusText").textContent = "Active validator"; }
 
   // commission
@@ -432,10 +453,65 @@ function renderStake(hist) {
   $("stakeRange").textContent = `Eras ${fmt(hist[0].era)}–${fmt(lastH.era)}`;
 }
 
+// ------------------------------------------------------------------ operator announcements (announcements.json in the repo)
+let notices = [];
+async function loadNotices() {
+  try {
+    const r = await fetch("announcements.json?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    notices = (Array.isArray(j) ? j : j.announcements || []).filter((n) => n && (n.title || n.message));
+  } catch { /* opened from disk or file missing: no announcements */ }
+  renderNotices();
+}
+function activeMaintenance() {
+  const now = Date.now();
+  return notices.find((n) => (n.type || "info") === "maintenance" && n.start && Date.parse(n.start) <= now && (!n.end || Date.parse(n.end) >= now));
+}
+function renderNotices() {
+  const host = $("notices"); host.replaceChildren();
+  const now = Date.now(), DAY = 864e5;
+  const fmtTime = (iso) => new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const fmtClock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+  const items = notices.map((n) => {
+    const s = n.start ? Date.parse(n.start) : null, e = n.end ? Date.parse(n.end) : null;
+    let phase = "info";
+    if (e && e < now) phase = "done"; else if (s && s <= now) phase = "now"; else if (s) phase = "upcoming";
+    return { ...n, s, e, phase };
+  })
+    .filter((n) => n.phase !== "done" || now - n.e < DAY)        // finished items show for 24h, then disappear
+    .filter((n) => !n.expires || Date.parse(n.expires) > now)    // optional hard expiry for info posts
+    .sort((a, b) => ({ now: 0, upcoming: 1, info: 2, done: 3 }[a.phase] - { now: 0, upcoming: 1, info: 2, done: 3 }[b.phase]) || (a.s ?? 0) - (b.s ?? 0));
+
+  for (const n of items) {
+    const type = (n.type || "info") === "maintenance" ? "maintenance" : "info";
+    const card = document.createElement("div");
+    card.className = `notice ${type}` + (n.phase === "now" ? " now" : "") + (n.phase === "done" ? " done" : "");
+    const ni = document.createElement("div"); ni.className = "ni";
+    ni.textContent = n.phase === "done" ? "✓" : type === "maintenance" ? "🛠" : "ℹ";
+    const body = document.createElement("div");
+    const nt = document.createElement("div"); nt.className = "nt";
+    nt.append(n.title || (type === "maintenance" ? "Planned maintenance" : "Update from the operator"));
+    const tag = document.createElement("span"); tag.className = "tag";
+    tag.textContent = { now: "Happening now", upcoming: "Scheduled", done: "Completed", info: type === "maintenance" ? "Scheduled" : "Notice" }[n.phase];
+    nt.append(tag); body.append(nt);
+    if (n.s) {
+      const w = document.createElement("div"); w.className = "when";
+      w.textContent = n.e ? `${fmtTime(n.s)} – ${sameDay(n.s, n.e) ? fmtClock(n.e) : fmtTime(n.e)} (your time)` : `${fmtTime(n.s)} (your time)`;
+      if (n.phase === "upcoming") { const h = Math.round((n.s - now) / 36e5); w.textContent += h < 1 ? " · starts within the hour" : h < 48 ? ` · in about ${h}h` : ""; }
+      body.append(w);
+    }
+    if (n.message) { const m = document.createElement("div"); m.className = "msg"; m.textContent = n.message; body.append(m); }
+    card.append(ni, body); host.append(card);
+  }
+}
+
 // ------------------------------------------------------------------ loop (pauses while the tab is hidden)
 async function refresh() {
   if (document.hidden) return;
   try {
+    await loadNotices();
     const s = await loadLive(); last = s; render(s);
     if (!history || Date.now() - historyAt > HISTORY_MS) { history = await loadHistory(s.activeEra); historyAt = Date.now(); }
     renderStake(history);
@@ -448,6 +524,7 @@ async function refresh() {
   }
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+loadNotices(); // show announcements right away, even before the chain answers
 let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => history && renderStake(history), 150); });
 
 try {

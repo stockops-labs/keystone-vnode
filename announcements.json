@@ -1,0 +1,19 @@
+{
+  "announcements": [],
+
+  "_examples": [
+    {
+      "type": "maintenance",
+      "title": "Planned maintenance: UPS install",
+      "start": "2026-11-15T09:00-06:00",
+      "end": "2026-11-15T09:30-06:00",
+      "message": "Expect up to 30 minutes offline. No action needed from cooperators."
+    },
+    {
+      "type": "info",
+      "title": "Keystone reached Ultramodern 10",
+      "message": "Stake bonus is now 27%.",
+      "expires": "2026-11-22T00:00-06:00"
+    }
+  ]
+}
